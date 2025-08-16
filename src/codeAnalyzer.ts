@@ -36,7 +36,7 @@ export class CodeAnalyzer {
 
     // Watch for active text editor changes
     vscode.window.onDidChangeActiveTextEditor((editor) => {
-      if (editor && this.isPythonFile(editor.document)) {
+      if (editor && this.isSupportedFile(editor.document)) {
         console.log(`📁 Active editor changed to: ${editor.document.fileName}`);
         this.currentFile = editor.document.fileName;
         this.analyzeFile(editor.document);
@@ -46,7 +46,7 @@ export class CodeAnalyzer {
     // Watch for document changes
     vscode.workspace.onDidChangeTextDocument((event) => {
       if (
-        this.isPythonFile(event.document) &&
+        this.isSupportedFile(event.document) &&
         event.document === vscode.window.activeTextEditor?.document
       ) {
         console.log(`✏️ Document changed: ${event.document.fileName}`);
@@ -56,9 +56,21 @@ export class CodeAnalyzer {
 
     // Watch for document saves
     vscode.workspace.onDidSaveTextDocument((document) => {
-      if (this.isPythonFile(document)) {
+      if (this.isSupportedFile(document)) {
         console.log(`💾 Document saved: ${document.fileName}`);
         this.analyzeFile(document);
+      }
+    });
+
+    // React to diagnostics changes so we reflect actual squiggles from language servers
+    vscode.languages.onDidChangeDiagnostics((event) => {
+      const active = vscode.window.activeTextEditor;
+      if (!active || !this.isSupportedFile(active.document)) return;
+      if (
+        event.uris.some((u) => u.toString() === active.document.uri.toString())
+      ) {
+        console.log(`🩺 Diagnostics changed: ${active.document.fileName}`);
+        this.analyzeFile(active.document);
       }
     });
 
@@ -66,15 +78,24 @@ export class CodeAnalyzer {
 
     // Perform initial analysis for the currently active editor (if any)
     const active = vscode.window.activeTextEditor;
-    if (active && this.isPythonFile(active.document)) {
+    if (active && this.isSupportedFile(active.document)) {
       this.currentFile = active.document.fileName;
       this.analyzeFile(active.document);
     }
   }
 
-  private isPythonFile(document: vscode.TextDocument): boolean {
+  private isSupportedFile(document: vscode.TextDocument): boolean {
+    const id = document.languageId;
+    const name = document.fileName.toLowerCase();
     return (
-      document.languageId === "python" || document.fileName.endsWith(".py")
+      id === "python" ||
+      name.endsWith(".py") ||
+      id === "javascript" ||
+      name.endsWith(".js") ||
+      id === "typescript" ||
+      name.endsWith(".ts") ||
+      id === "java" ||
+      name.endsWith(".java")
     );
   }
 
@@ -82,7 +103,11 @@ export class CodeAnalyzer {
     try {
       console.log(`🔍 Analyzing file: ${document.fileName}`);
       const content = document.getText();
-      const result = await this.analyzePythonCode(content);
+      const result = await this.analyzeCode(
+        content,
+        document.languageId,
+        document.fileName
+      );
 
       console.log(`📊 Analysis result:`, result);
 
@@ -91,6 +116,20 @@ export class CodeAnalyzer {
 
       // Compare against previous results BEFORE updating the cache
       const previous = this.analysisResults.get(document.fileName);
+
+      // Overlay with VS Code diagnostics for authoritative errors
+      const diags = vscode.languages.getDiagnostics(document.uri);
+      const errors = diags.filter(
+        (d) => d.severity === vscode.DiagnosticSeverity.Error
+      );
+      result.errorCount = errors.length;
+      result.hasErrors = errors.length > 0;
+      // last messages from diagnostics if available
+      if (errors.length > 0) {
+        const e = errors[0];
+        const line = (e.range?.start?.line ?? 0) + 1;
+        result.lastError = `Line ${line}: ${e.message}`;
+      }
 
       // Update cache first so consumers can read the latest
       this.analysisResults.set(document.fileName, result);
@@ -108,7 +147,7 @@ export class CodeAnalyzer {
     const lines = content.split("\n").filter((line) => line.trim().length > 0);
     const lineCount = lines.length;
 
-    // Basic syntax analysis
+    // Basic syntax analysis (may be overridden by diagnostics)
     const syntaxErrors = this.checkPythonSyntax(content);
     const hasErrors = syntaxErrors.length > 0;
     const errorCount = syntaxErrors.length;
@@ -119,7 +158,8 @@ export class CodeAnalyzer {
 
     // Get last messages
     const lastError = hasErrors ? syntaxErrors[0] : undefined;
-    const lastSuccess = !hasErrors && lineCount > 0 ? "Code looks good!" : undefined;
+    const lastSuccess =
+      !hasErrors && lineCount > 0 ? "Code looks good!" : undefined;
 
     return {
       hasErrors,
@@ -130,6 +170,72 @@ export class CodeAnalyzer {
       lastError,
       lastSuccess,
     };
+  }
+
+  private async analyzeJSTSCode(content: string): Promise<CodeAnalysisResult> {
+    const lines = content.split("\n").filter((l) => l.trim().length > 0);
+    const lineCount = lines.length;
+
+    const syntaxErrors = this.checkJSTSSyntax(content);
+    const hasErrors = syntaxErrors.length > 0;
+    const errorCount = syntaxErrors.length;
+
+    const complexity = this.calculateComplexity(lines);
+    const quality = this.assessCodeQuality(lines, complexity, errorCount);
+
+    const lastError = hasErrors ? syntaxErrors[0] : undefined;
+    const lastSuccess =
+      !hasErrors && lineCount > 0 ? "Code looks good!" : undefined;
+
+    return {
+      hasErrors,
+      errorCount,
+      lineCount,
+      complexity,
+      quality,
+      lastError,
+      lastSuccess,
+    };
+  }
+
+  private async analyzeJavaCode(content: string): Promise<CodeAnalysisResult> {
+    const lines = content.split("\n").filter((l) => l.trim().length > 0);
+    const lineCount = lines.length;
+
+    const syntaxErrors = this.checkJavaSyntax(content);
+    const hasErrors = syntaxErrors.length > 0;
+    const errorCount = syntaxErrors.length;
+
+    const complexity = this.calculateComplexity(lines);
+    const quality = this.assessCodeQuality(lines, complexity, errorCount);
+
+    const lastError = hasErrors ? syntaxErrors[0] : undefined;
+    const lastSuccess =
+      !hasErrors && lineCount > 0 ? "Code looks good!" : undefined;
+
+    return {
+      hasErrors,
+      errorCount,
+      lineCount,
+      complexity,
+      quality,
+      lastError,
+      lastSuccess,
+    };
+  }
+
+  private async analyzeCode(
+    content: string,
+    languageId: string,
+    fileName: string
+  ): Promise<CodeAnalysisResult> {
+    const id = languageId.toLowerCase();
+    if (id === "python") return this.analyzePythonCode(content);
+    if (id === "javascript" || id === "typescript")
+      return this.analyzeJSTSCode(content);
+    if (id === "java") return this.analyzeJavaCode(content);
+    // Fallback to Python heuristics if unknown (basic metrics only)
+    return this.analyzePythonCode(content);
   }
 
   private checkPythonSyntax(content: string): string[] {
@@ -249,46 +355,7 @@ export class CodeAnalyzer {
     return complexity;
   }
 
-  private checkPythonWarnings(content: string): string[] {
-    const warnings: string[] = [];
-    const lines = content.split("\n");
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      const lineNumber = i + 1;
-
-      // Long line warning (>120 chars)
-      if (line.length > 120) {
-        warnings.push(`Line ${lineNumber}: Line exceeds 120 characters`);
-      }
-      // Trailing whitespace
-      if (/\s+$/.test(line) && line.trim().length > 0) {
-        warnings.push(`Line ${lineNumber}: Trailing whitespace`);
-      }
-      // TODO/FIXME notes
-      if (/\b(TODO|FIXME)\b/.test(line)) {
-        warnings.push(
-          `Line ${lineNumber}: Contains ${
-            line.match(/\b(TODO|FIXME)\b/)?.[0]
-          } note`
-        );
-      }
-      // Tab indentation (PEP8 prefers spaces)
-      if (/^\t+/.test(line)) {
-        warnings.push(
-          `Line ${lineNumber}: Uses tab indentation (prefer spaces)`
-        );
-      }
-      // Mixed indentation (tabs + spaces at start)
-      if (/^(\t+ +| +\t+)/.test(line)) {
-        warnings.push(
-          `Line ${lineNumber}: Mixed indentation (tabs and spaces)`
-        );
-      }
-    }
-
-    return warnings;
-  }
+  // (Warnings removed)
 
   private assessCodeQuality(
     lines: string[],
@@ -303,6 +370,96 @@ export class CodeAnalyzer {
       return "needs_work";
     }
   }
+
+  // ===== JS/TS heuristics =====
+  private checkJSTSSyntax(content: string): string[] {
+    const errors: string[] = [];
+    const lines = content.split("\n");
+
+    // Unbalanced brackets/quotes across the file
+    const count = (s: string, ch: string) =>
+      (s.match(new RegExp(`\\${ch}`, "g")) || []).length;
+    const paren = count(content, "(") - count(content, ")");
+    const brace = count(content, "{") - count(content, "}");
+    const bracket = count(content, "[") - count(content, "]");
+    const single = count(content, "'") % 2 !== 0;
+    const dbl = count(content, '"') % 2 !== 0;
+    const btick = count(content, "`") % 2 !== 0;
+    if (paren !== 0) errors.push("Unbalanced parentheses");
+    if (brace !== 0) errors.push("Unbalanced curly braces");
+    if (bracket !== 0) errors.push("Unbalanced brackets");
+    if (single || dbl || btick) errors.push("Unmatched quotes/backticks");
+
+    // try without catch/finally
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i].trim();
+      if (l.startsWith("try")) {
+        const rest = lines.slice(i + 1).join("\n");
+        if (!/\bcatch\b|\bfinally\b/.test(rest)) {
+          errors.push(`Line ${i + 1}: try block without catch/finally`);
+        }
+      }
+    }
+    return errors;
+  }
+
+  // (Warnings removed)
+
+  // ===== Java heuristics =====
+  private checkJavaSyntax(content: string): string[] {
+    const errors: string[] = [];
+    const lines = content.split("\n");
+
+    const count = (s: string, ch: string) =>
+      (s.match(new RegExp(`\\${ch}`, "g")) || []).length;
+    const paren = count(content, "(") - count(content, ")");
+    const brace = count(content, "{") - count(content, "}");
+    const bracket = count(content, "[") - count(content, "]");
+    const single = count(content, "'") % 2 !== 0;
+    const dbl = count(content, '"') % 2 !== 0;
+    if (paren !== 0) errors.push("Unbalanced parentheses");
+    if (brace !== 0) errors.push("Unbalanced curly braces");
+    if (bracket !== 0) errors.push("Unbalanced brackets");
+    if (single || dbl) errors.push("Unmatched quotes");
+
+    // try without catch/finally
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i].trim();
+      if (l.startsWith("try")) {
+        const rest = lines.slice(i + 1).join("\n");
+        if (!/\bcatch\b|\bfinally\b/.test(rest)) {
+          errors.push(`Line ${i + 1}: try block without catch/finally`);
+        }
+      }
+    }
+
+    // crude missing semicolon detection for statements
+    for (let i = 0; i < lines.length; i++) {
+      const raw = lines[i];
+      const l = raw.trim();
+      if (!l) continue;
+      if (
+        /(^if\b|^for\b|^while\b|^switch\b|^try\b|^catch\b|^finally\b|^class\b|^interface\b|^enum\b)/.test(
+          l
+        )
+      )
+        continue;
+      if (l.endsWith("{") || l.endsWith("}") || l.endsWith(";")) continue;
+      // Ignore annotations and comments
+      if (
+        l.startsWith("@") ||
+        l.startsWith("//") ||
+        l.startsWith("/*") ||
+        l.startsWith("*")
+      )
+        continue;
+      // Likely missing semicolon
+      errors.push(`Line ${i + 1}: Possible missing semicolon`);
+    }
+    return errors;
+  }
+
+  // (Warnings removed)
 
   private updateBotEmotion(
     result: CodeAnalysisResult,
@@ -319,7 +476,6 @@ export class CodeAnalyzer {
       reason = `Found ${result.errorCount} syntax error(s) in ${path.basename(
         fileName
       )}`;
-  // ...existing code...
     } else if (result.lineCount === 0) {
       emotion = "happy";
       reason = "Empty file - ready to start coding!";

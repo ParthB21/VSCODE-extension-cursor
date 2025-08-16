@@ -3,6 +3,10 @@
   "displayName": "Coding Buddy Bot",
   "description": "A tiny bot that tracks your coding sessions and provides motivational feedback using computer vision",
   "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ParthB21/VSCODE-extension-cursor"
+  },
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -25,7 +29,6 @@
         "title": "Stop Coding Buddy Session",
         "category": "Coding Buddy"
       },
-
       {
         "command": "coding-buddy-bot.showBot",
         "title": "Show Bot Interface",
