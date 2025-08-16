@@ -77,13 +77,10 @@ export class BotInterface {
         if (reason) {
             this.currentReason = reason;
         }
-        // Always open/reveal the panel when emotion updates
-        if (!this.panel) {
-            this.showBot();
-        } else {
-            this.panel.reveal();
+        // Do not reveal or create the panel on background updates to avoid stealing focus
+        if (this.panel) {
+            this.updateBotInterface();
         }
-        this.updateBotInterface();
     }
 
     public updateCodeStats(stats: {
@@ -351,7 +348,8 @@ export class BotInterface {
     private getBotEmoji(): string {
         const emojiMap: { [key: string]: string } = {
             'happy': '😊',
-            'frustrated': '😤'
+        'frustrated': '😤',
+        'concerned': '😟'
         };
         return emojiMap[this.currentEmotion] || '😊';
     }
