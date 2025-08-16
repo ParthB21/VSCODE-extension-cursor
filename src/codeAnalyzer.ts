@@ -99,7 +99,7 @@ export class CodeAnalyzer {
       this.analysisResults.set(document.fileName, result);
 
       // Notify UI based on diff with previous
-  this.updateBotEmotion(result, document.fileName, previous);
+      this.updateBotEmotion(result, document.fileName, previous);
     } catch (error) {
       console.error("Error analyzing Python file:", error);
     }
@@ -116,10 +116,10 @@ export class CodeAnalyzer {
     const hasErrors = syntaxErrors.length > 0;
     const errorCount = syntaxErrors.length;
 
-  // Basic warnings analysis (style/quality hints)
-  const warnings = this.checkPythonWarnings(content);
-  const hasWarnings = warnings.length > 0;
-  const warningCount = warnings.length;
+    // Basic warnings analysis (style/quality hints)
+    const warnings = this.checkPythonWarnings(content);
+    const hasWarnings = warnings.length > 0;
+    const warningCount = warnings.length;
 
     // Code quality analysis
     const complexity = this.calculateComplexity(lines);
@@ -280,15 +280,23 @@ export class CodeAnalyzer {
       }
       // TODO/FIXME notes
       if (/\b(TODO|FIXME)\b/.test(line)) {
-        warnings.push(`Line ${lineNumber}: Contains ${line.match(/\b(TODO|FIXME)\b/)?.[0]} note`);
+        warnings.push(
+          `Line ${lineNumber}: Contains ${
+            line.match(/\b(TODO|FIXME)\b/)?.[0]
+          } note`
+        );
       }
       // Tab indentation (PEP8 prefers spaces)
       if (/^\t+/.test(line)) {
-        warnings.push(`Line ${lineNumber}: Uses tab indentation (prefer spaces)`);
+        warnings.push(
+          `Line ${lineNumber}: Uses tab indentation (prefer spaces)`
+        );
       }
       // Mixed indentation (tabs + spaces at start)
       if (/^(\t+ +| +\t+)/.test(line)) {
-        warnings.push(`Line ${lineNumber}: Mixed indentation (tabs and spaces)`);
+        warnings.push(
+          `Line ${lineNumber}: Mixed indentation (tabs and spaces)`
+        );
       }
     }
 

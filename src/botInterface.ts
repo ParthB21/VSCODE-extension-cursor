@@ -1,111 +1,116 @@
-import * as vscode from 'vscode';
+import * as vscode from "vscode";
 
 export class BotInterface {
-    private panel: vscode.WebviewPanel | undefined;
-    private currentEmotion: string = 'focused';
-    private sessionDuration: number = 0;
-    private breakthroughCount: number = 0;
-    private focusTime: number = 0;
-    private currentReason: string = 'Ready to code!';
-    private codeStats: {
-        lineCount: number;
-        errorCount: number;
-        complexity: number;
-        quality: string;
-    } = {
-        lineCount: 0,
-        errorCount: 0,
-        complexity: 0,
-        quality: 'good'
-    };
+  private panel: vscode.WebviewPanel | undefined;
+  private currentEmotion: string = "focused";
+  private sessionDuration: number = 0;
+  private breakthroughCount: number = 0;
+  private focusTime: number = 0;
+  private currentReason: string = "Ready to code!";
+  private codeStats: {
+    lineCount: number;
+    errorCount: number;
+    complexity: number;
+    quality: string;
+  } = {
+    lineCount: 0,
+    errorCount: 0,
+    complexity: 0,
+    quality: "good",
+  };
 
-    constructor() {
-        console.log('BotInterface initialized');
+  constructor() {
+    console.log("BotInterface initialized");
+  }
+
+  public showBot(): void {
+    if (this.panel) {
+      this.panel.reveal();
+      return;
     }
 
-    public showBot(): void {
-        if (this.panel) {
-            this.panel.reveal();
-            return;
-        }
+    // Create and show panel
+    this.panel = vscode.window.createWebviewPanel(
+      "codingBuddyBot",
+      "🤖 Coding Buddy Bot",
+      vscode.ViewColumn.Two,
+      {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+      }
+    );
 
-        // Create and show panel
-        this.panel = vscode.window.createWebviewPanel(
-            'codingBuddyBot',
-            '🤖 Coding Buddy Bot',
-            vscode.ViewColumn.Two,
-            {
-                enableScripts: true,
-                retainContextWhenHidden: true
-            }
-        );
+    // Set the HTML content
+    this.updateBotInterface();
 
-        // Set the HTML content
-        this.updateBotInterface();
+    // Handle panel disposal
+    this.panel.onDidDispose(() => {
+      this.panel = undefined;
+    });
 
-        // Handle panel disposal
-        this.panel.onDidDispose(() => {
-            this.panel = undefined;
-        });
+    // Handle messages from webview
+    this.panel.webview.onDidReceiveMessage((message) => {
+      switch (message.command) {
+        case "startSession":
+          vscode.commands.executeCommand("coding-buddy-bot.startSession");
+          break;
+        case "stopSession":
+          vscode.commands.executeCommand("coding-buddy-bot.stopSession");
+          break;
+      }
+    });
+  }
 
-        // Handle messages from webview
-        this.panel.webview.onDidReceiveMessage(
-            message => {
-                switch (message.command) {
-                    case 'startSession':
-                        vscode.commands.executeCommand('coding-buddy-bot.startSession');
-                        break;
-                    case 'stopSession':
-                        vscode.commands.executeCommand('coding-buddy-bot.stopSession');
-                        break;
-                }
-            }
-        );
+  public updateBotInterface(): void {
+    if (!this.panel) {
+      return;
     }
 
-    public updateBotInterface(): void {
-        if (!this.panel) {
-            return;
-        }
+    this.panel.webview.html = this.getWebviewContent();
+  }
 
-        this.panel.webview.html = this.getWebviewContent();
+  public updateEmotion(emotion: string, reason?: string): void {
+    console.log(
+      `[BOT INTERFACE] updateEmotion called: ${emotion}, reason: ${reason}`
+    );
+    this.currentEmotion = emotion;
+    if (reason) {
+      this.currentReason = reason;
     }
-
-    public updateEmotion(emotion: string, reason?: string): void {
-        console.log(`[BOT INTERFACE] updateEmotion called: ${emotion}, reason: ${reason}`);
-        this.currentEmotion = emotion;
-        if (reason) {
-            this.currentReason = reason;
-        }
-        // Do not reveal or create the panel on background updates to avoid stealing focus
-        if (this.panel) {
-            this.updateBotInterface();
-        }
+    // Do not reveal or create the panel on background updates to avoid stealing focus
+    if (this.panel) {
+      this.updateBotInterface();
     }
+  }
 
-    public updateCodeStats(stats: {
-        lineCount: number;
-        errorCount: number;
-        complexity: number;
-        quality: string;
-    }): void {
-        this.codeStats = stats;
-        this.updateBotInterface();
-    }
+  public updateCodeStats(stats: {
+    lineCount: number;
+    errorCount: number;
+    complexity: number;
+    quality: string;
+  }): void {
+    this.codeStats = stats;
+    this.updateBotInterface();
+  }
 
-    public updateSessionStats(duration: number, breakthroughs: number, focus: number): void {
-        this.sessionDuration = duration;
-        this.breakthroughCount = breakthroughs;
-        this.focusTime = focus;
-        this.updateBotInterface();
-    }
+  public updateSessionStats(
+    duration: number,
+    breakthroughs: number,
+    focus: number
+  ): void {
+    this.sessionDuration = duration;
+    this.breakthroughCount = breakthroughs;
+    this.focusTime = focus;
+    this.updateBotInterface();
+  }
 
-    private getWebviewContent(): string {
-        const minutes = Math.floor(this.sessionDuration / (1000 * 60));
-        const hours = Math.floor(minutes / 60);
-        const displayTime = hours > 0 ? `${hours}h ${minutes % 60}m` : `${minutes}m`;
+  private getWebviewContent(): string {
+    const minutes = Math.floor(this.sessionDuration / (1000 * 60));
+    const hours = Math.floor(minutes / 60);
+    const displayTime =
+      hours > 0 ? `${hours}h ${minutes % 60}m` : `${minutes}m`;
 
-        return `
+    return `
             <!DOCTYPE html>
             <html lang="en">
             <head>
@@ -279,12 +284,16 @@ export class BotInterface {
                         </div>
                         <div class="stat-card">
                             <div class="stat-value">🚀</div>
-                            <div class="stat-value">${this.breakthroughCount}</div>
+                            <div class="stat-value">${
+                              this.breakthroughCount
+                            }</div>
                             <div class="stat-label">Breakthroughs</div>
                         </div>
                         <div class="stat-card">
                             <div class="stat-value">🎯</div>
-                            <div class="stat-value">${Math.floor(this.focusTime / (1000 * 60))}m</div>
+                            <div class="stat-value">${Math.floor(
+                              this.focusTime / (1000 * 60)
+                            )}m</div>
                             <div class="stat-label">Focus Time</div>
                         </div>
                     </div>
@@ -294,22 +303,30 @@ export class BotInterface {
                         <div class="code-stats-grid">
                             <div class="code-stat-card">
                                 <div class="code-stat-value">📝</div>
-                                <div class="code-stat-value">${this.codeStats.lineCount}</div>
+                                <div class="code-stat-value">${
+                                  this.codeStats.lineCount
+                                }</div>
                                 <div class="code-stat-label">Lines of Code</div>
                             </div>
                             <div class="code-stat-card">
                                 <div class="code-stat-value">❌</div>
-                                <div class="code-stat-value">${this.codeStats.errorCount}</div>
+                                <div class="code-stat-value">${
+                                  this.codeStats.errorCount
+                                }</div>
                                 <div class="code-stat-label">Errors</div>
                             </div>
                             <div class="code-stat-card">
                                 <div class="code-stat-value">🧠</div>
-                                <div class="code-stat-value">${this.codeStats.complexity}</div>
+                                <div class="code-stat-value">${
+                                  this.codeStats.complexity
+                                }</div>
                                 <div class="code-stat-label">Complexity</div>
                             </div>
                             <div class="code-stat-card">
                                 <div class="code-stat-value">⭐</div>
-                                <div class="code-stat-value">${this.codeStats.quality}</div>
+                                <div class="code-stat-value">${
+                                  this.codeStats.quality
+                                }</div>
                                 <div class="code-stat-label">Quality</div>
                             </div>
                         </div>
@@ -343,20 +360,20 @@ export class BotInterface {
             </body>
             </html>
         `;
-    }
+  }
 
-    private getBotEmoji(): string {
-        const emojiMap: { [key: string]: string } = {
-            'happy': '😊',
-        'frustrated': '😤',
-        'concerned': '😟'
-        };
-        return emojiMap[this.currentEmotion] || '😊';
-    }
+  private getBotEmoji(): string {
+    const emojiMap: { [key: string]: string } = {
+      happy: "😊",
+      frustrated: "😤",
+      concerned: "😟",
+    };
+    return emojiMap[this.currentEmotion] || "😊";
+  }
 
-    public dispose(): void {
-        if (this.panel) {
-            this.panel.dispose();
-        }
+  public dispose(): void {
+    if (this.panel) {
+      this.panel.dispose();
     }
+  }
 }
