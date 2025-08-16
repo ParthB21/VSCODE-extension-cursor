@@ -80,7 +80,6 @@ export class BotInterface {
     if (reason) {
       this.currentReason = reason;
     }
-    // Do not reveal or create the panel on background updates to avoid stealing focus
     if (this.panel) {
       this.updateBotInterface();
     }
@@ -107,7 +106,6 @@ export class BotInterface {
     this.updateBotInterface();
   }
 
-  // Timer control methods
   public startTimer(): void {
     if (this.panel) {
       this.panel.webview.postMessage({ command: 'startTimer' });
@@ -120,15 +118,12 @@ export class BotInterface {
     }
   }
 
-  // WATER REMINDER METHODS
   public startWaterReminder(): void {
-    // Clear any existing timer
     this.stopWaterReminder();
     
-    // Set up water reminder every 15 seconds (for testing - change to 15 * 60 * 1000 for 15 minutes)
     this.waterReminderTimer = setInterval(() => {
       this.showWaterNotification();
-    }, 15 * 1000); // 15 seconds for testing
+    }, 15 * 1000);
     
     console.log("💧 Water reminder started - notifications every 15 seconds");
   }
@@ -152,10 +147,8 @@ export class BotInterface {
 
     const randomMessage = waterMessages[Math.floor(Math.random() * waterMessages.length)];
     
-    // Show VS Code notification
     vscode.window.showInformationMessage(randomMessage);
     
-    // Also send message to webview if it exists
     if (this.panel) {
       this.panel.webview.postMessage({ 
         command: 'waterReminder', 
@@ -177,157 +170,450 @@ export class BotInterface {
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <title>Coding Buddy Bot</title>
+                <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
                 <style>
+                    * {
+                        margin: 0;
+                        padding: 0;
+                        box-sizing: border-box;
+                    }
+
                     body {
-                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                        font-family: 'Rajdhani', 'Segoe UI', monospace;
                         margin: 0;
                         padding: 20px;
-                        background: red !important;
-                        color: white;
+                        background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 50%, #16213e 100%);
+                        color: #00ffff;
                         min-height: 100vh;
+                        overflow-x: hidden;
+                        position: relative;
                     }
+
+                    body::before {
+                        content: '';
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                        background: 
+                            radial-gradient(circle at 20% 80%, rgba(0, 255, 255, 0.05) 0%, transparent 50%),
+                            radial-gradient(circle at 80% 20%, rgba(255, 0, 255, 0.05) 0%, transparent 50%),
+                            radial-gradient(circle at 40% 40%, rgba(0, 255, 0, 0.03) 0%, transparent 50%);
+                        pointer-events: none;
+                        z-index: -1;
+                    }
+
                     .bot-container {
                         text-align: center;
-                        max-width: 600px;
+                        max-width: 800px;
                         margin: 0 auto;
+                        position: relative;
                     }
+
                     .bot-avatar {
                         font-size: 120px;
                         margin: 20px 0;
-                        animation: bounce 2s infinite;
+                        animation: float 3s ease-in-out infinite, glow 2s ease-in-out infinite alternate;
+                        filter: drop-shadow(0 0 20px #00ffff);
+                        position: relative;
                     }
+
+                    .bot-avatar::after {
+                        content: '';
+                        position: absolute;
+                        top: 50%;
+                        left: 50%;
+                        transform: translate(-50%, -50%);
+                        width: 120%;
+                        height: 120%;
+                        border: 2px solid rgba(0, 255, 255, 0.3);
+                        border-radius: 50%;
+                        animation: scan 4s linear infinite;
+                        pointer-events: none;
+                    }
+
+                    h1 {
+                        font-family: 'Orbitron', monospace;
+                        font-weight: 900;
+                        font-size: 3rem;
+                        background: linear-gradient(45deg, #00ffff, #ff00ff, #ffff00);
+                        -webkit-background-clip: text;
+                        -webkit-text-fill-color: transparent;
+                        background-clip: text;
+                        margin-bottom: 10px;
+                        text-shadow: 0 0 30px rgba(0, 255, 255, 0.5);
+                        animation: textGlow 3s ease-in-out infinite alternate;
+                    }
+
+                    .subtitle {
+                        font-family: 'Rajdhani', sans-serif;
+                        font-size: 1.2rem;
+                        color: #00ffff;
+                        margin-bottom: 30px;
+                        opacity: 0.8;
+                        text-transform: lowercase;
+                        letter-spacing: 2px;
+                    }
+
                     .bot-status {
-                        background: rgba(255, 255, 255, 0.1);
-                        padding: 20px;
-                        border-radius: 15px;
-                        margin: 20px 0;
-                        backdrop-filter: blur(10px);
+                        background: linear-gradient(135deg, rgba(0, 255, 255, 0.1), rgba(255, 0, 255, 0.1));
+                        padding: 25px;
+                        border-radius: 20px;
+                        margin: 25px 0;
+                        backdrop-filter: blur(15px);
+                        border: 1px solid rgba(0, 255, 255, 0.3);
+                        box-shadow: 
+                            0 0 30px rgba(0, 255, 255, 0.2),
+                            inset 0 0 30px rgba(0, 255, 255, 0.05);
+                        position: relative;
+                        overflow: hidden;
                     }
+
+                    .bot-status::before {
+                        content: '';
+                        position: absolute;
+                        top: 0;
+                        left: -100%;
+                        width: 100%;
+                        height: 100%;
+                        background: linear-gradient(90deg, transparent, rgba(0, 255, 255, 0.1), transparent);
+                        animation: shimmer 3s infinite;
+                    }
+
+                    .bot-status h2 {
+                        font-family: 'Orbitron', monospace;
+                        font-weight: 700;
+                        color: #00ffff;
+                        margin-bottom: 15px;
+                        text-transform: uppercase;
+                        letter-spacing: 2px;
+                    }
+
                     .emotion-display {
                         font-size: 24px;
                         margin: 15px 0;
-                        padding: 10px;
-                        background: rgba(255, 255, 255, 0.2);
-                        border-radius: 10px;
+                        padding: 15px;
+                        background: rgba(0, 255, 255, 0.1);
+                        border-radius: 15px;
+                        border: 1px solid rgba(0, 255, 255, 0.3);
+                        font-weight: 600;
+                        text-transform: uppercase;
+                        letter-spacing: 1px;
                     }
+
+                    .reason-display {
+                        font-size: 18px;
+                        margin: 15px 0;
+                        padding: 15px;
+                        background: linear-gradient(135deg, rgba(255, 0, 255, 0.1), rgba(0, 255, 0, 0.1));
+                        border-radius: 15px;
+                        border: 1px solid rgba(255, 0, 255, 0.3);
+                        font-style: italic;
+                        color: #ff00ff;
+                    }
+
                     .stats-grid {
+                        display: grid;
+                        grid-template-columns: 1fr;
+                        gap: 20px;
+                        margin: 30px 0;
+                    }
+
+                    .stat-card {
+                        background: linear-gradient(135deg, rgba(0, 255, 255, 0.05), rgba(0, 100, 255, 0.05));
+                        padding: 20px;
+                        border-radius: 15px;
+                        text-align: center;
+                        border: 1px solid rgba(0, 255, 255, 0.3);
+                        backdrop-filter: blur(10px);
+                        box-shadow: 0 5px 25px rgba(0, 255, 255, 0.1);
+                        transition: all 0.3s ease;
+                        position: relative;
+                        overflow: hidden;
+                    }
+
+                    .stat-card:hover {
+                        transform: translateY(-10px) scale(1.05);
+                        box-shadow: 0 15px 35px rgba(0, 255, 255, 0.3);
+                        border-color: rgba(0, 255, 255, 0.6);
+                    }
+
+                    .stat-card::before {
+                        content: '';
+                        position: absolute;
+                        top: 0;
+                        left: -100%;
+                        width: 100%;
+                        height: 100%;
+                        background: linear-gradient(90deg, transparent, rgba(0, 255, 255, 0.2), transparent);
+                        transition: left 0.6s ease;
+                    }
+
+                    .stat-card:hover::before {
+                        left: 100%;
+                    }
+
+                    .stat-value {
+                        font-family: 'Orbitron', monospace;
+                        font-size: 32px;
+                        font-weight: 900;
+                        margin: 10px 0;
+                        color: #00ffff;
+                        text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+                    }
+
+                    .stat-label {
+                        font-size: 14px;
+                        opacity: 0.8;
+                        text-transform: uppercase;
+                        letter-spacing: 1px;
+                        font-weight: 500;
+                    }
+
+                    .code-analysis {
+                        background: linear-gradient(135deg, rgba(255, 0, 255, 0.05), rgba(0, 255, 0, 0.05));
+                        padding: 25px;
+                        border-radius: 20px;
+                        margin: 30px 0;
+                        border: 1px solid rgba(255, 0, 255, 0.3);
+                        backdrop-filter: blur(10px);
+                        box-shadow: 0 10px 30px rgba(255, 0, 255, 0.1);
+                    }
+
+                    .code-analysis h3 {
+                        font-family: 'Orbitron', monospace;
+                        color: #ff00ff;
+                        margin-bottom: 20px;
+                        text-transform: uppercase;
+                        letter-spacing: 2px;
+                    }
+
+                    .code-stats-grid {
                         display: grid;
                         grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
                         gap: 15px;
                         margin: 20px 0;
                     }
-                    .stat-card {
-                        background: rgba(255, 255, 255, 0.15);
+
+                    .code-stat-card {
+                        background: rgba(255, 0, 255, 0.1);
                         padding: 15px;
-                        border-radius: 10px;
+                        border-radius: 12px;
                         text-align: center;
-                    }
-                    .stat-value {
-                        font-size: 28px;
-                        font-weight: bold;
-                        margin: 5px 0;
-                    }
-                    .stat-label {
-                        font-size: 14px;
-                        opacity: 0.8;
-                    }
-                    .controls {
-                        margin: 20px 0;
-                    }
-                    .btn {
-                        background: rgba(255, 255, 255, 0.2);
-                        border: none;
-                        color: white;
-                        padding: 12px 24px;
-                        margin: 5px;
-                        border-radius: 25px;
-                        cursor: pointer;
-                        font-size: 16px;
+                        border: 1px solid rgba(255, 0, 255, 0.2);
                         transition: all 0.3s ease;
                     }
-                    .btn:hover {
-                        background: rgba(255, 255, 255, 0.3);
-                        transform: translateY(-2px);
+
+                    .code-stat-card:hover {
+                        background: rgba(255, 0, 255, 0.2);
+                        transform: translateY(-5px);
+                        box-shadow: 0 10px 20px rgba(255, 0, 255, 0.2);
                     }
-                    .btn:active {
-                        transform: translateY(0);
-                    }
-                    .btn:disabled {
-                        background: rgba(255, 255, 255, 0.1);
-                        cursor: not-allowed;
-                        opacity: 0.6;
-                    }
-                    .btn:disabled:hover {
-                        background: rgba(255, 255, 255, 0.1);
-                        transform: none;
-                    }
-                    .message-log {
-                        background: rgba(0, 0, 0, 0.2);
-                        padding: 15px;
-                        border-radius: 10px;
-                        margin: 20px 0;
-                        max-height: 200px;
-                        overflow-y: auto;
-                        text-align: left;
-                    }
-                    .message {
-                        margin: 5px 0;
-                        padding: 8px;
-                        background: rgba(255, 255, 255, 0.1);
-                        border-radius: 8px;
-                        font-size: 14px;
-                    }
-                    .water-message {
-                        background: rgba(0, 150, 255, 0.3);
-                        border-left: 4px solid #0096ff;
-                    }
-                    .reason-display {
-                        font-size: 18px;
-                        margin: 10px 0;
-                        padding: 12px;
-                        background: rgba(255, 255, 255, 0.15);
-                        border-radius: 10px;
-                        font-style: italic;
-                    }
-                    .code-analysis {
-                        background: rgba(255, 255, 255, 0.1);
-                        padding: 20px;
-                        border-radius: 15px;
-                        margin: 20px 0;
-                    }
-                    .code-stats-grid {
-                        display: grid;
-                        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-                        gap: 15px;
-                        margin: 15px 0;
-                    }
-                    .code-stat-card {
-                        background: rgba(255, 255, 255, 0.15);
-                        padding: 12px;
-                        border-radius: 10px;
-                        text-align: center;
-                    }
+
                     .code-stat-value {
+                        font-family: 'Orbitron', monospace;
                         font-size: 24px;
                         font-weight: bold;
                         margin: 5px 0;
+                        color: #ff00ff;
                     }
+
                     .code-stat-label {
                         font-size: 12px;
                         opacity: 0.8;
+                        text-transform: uppercase;
+                        letter-spacing: 0.5px;
                     }
-                    @keyframes bounce {
-                        0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
-                        40% { transform: translateY(-10px); }
-                        60% { transform: translateY(-5px); }
+
+                    .controls {
+                        margin: 30px 0;
                     }
+
+                    .btn {
+                        background: linear-gradient(45deg, rgba(0, 255, 255, 0.2), rgba(0, 100, 255, 0.2));
+                        border: 2px solid #00ffff;
+                        color: #00ffff;
+                        padding: 15px 30px;
+                        margin: 10px;
+                        border-radius: 50px;
+                        cursor: pointer;
+                        font-size: 16px;
+                        font-family: 'Orbitron', monospace;
+                        font-weight: 700;
+                        text-transform: uppercase;
+                        letter-spacing: 1px;
+                        transition: all 0.3s ease;
+                        position: relative;
+                        overflow: hidden;
+                        backdrop-filter: blur(10px);
+                        box-shadow: 0 5px 15px rgba(0, 255, 255, 0.3);
+                    }
+
+                    .btn::before {
+                        content: '';
+                        position: absolute;
+                        top: 0;
+                        left: -100%;
+                        width: 100%;
+                        height: 100%;
+                        background: linear-gradient(90deg, transparent, rgba(0, 255, 255, 0.4), transparent);
+                        transition: left 0.6s ease;
+                    }
+
+                    .btn:hover {
+                        background: linear-gradient(45deg, rgba(0, 255, 255, 0.4), rgba(0, 100, 255, 0.4));
+                        transform: translateY(-3px) scale(1.05);
+                        box-shadow: 
+                            0 10px 25px rgba(0, 255, 255, 0.4),
+                            0 0 30px rgba(0, 255, 255, 0.3);
+                        text-shadow: 0 0 10px rgba(0, 255, 255, 0.8);
+                    }
+
+                    .btn:hover::before {
+                        left: 100%;
+                    }
+
+                    .btn:active {
+                        transform: translateY(0) scale(1);
+                    }
+
+                    .btn:disabled {
+                        background: rgba(100, 100, 100, 0.2);
+                        border-color: rgba(100, 100, 100, 0.3);
+                        color: rgba(150, 150, 150, 0.5);
+                        cursor: not-allowed;
+                        opacity: 0.4;
+                        box-shadow: none;
+                    }
+
+                    .btn:disabled:hover {
+                        transform: none;
+                        box-shadow: none;
+                        text-shadow: none;
+                    }
+
+                    .message-log {
+                        background: linear-gradient(135deg, rgba(0, 0, 0, 0.3), rgba(0, 50, 50, 0.2));
+                        padding: 20px;
+                        border-radius: 15px;
+                        margin: 25px 0;
+                        max-height: 300px;
+                        overflow-y: auto;
+                        text-align: left;
+                        border: 1px solid rgba(0, 255, 255, 0.2);
+                        backdrop-filter: blur(10px);
+                    }
+
+                    .message-log h3 {
+                        font-family: 'Orbitron', monospace;
+                        color: #00ffff;
+                        margin-bottom: 15px;
+                        text-transform: uppercase;
+                        letter-spacing: 1px;
+                    }
+
+                    .message {
+                        margin: 8px 0;
+                        padding: 12px;
+                        background: rgba(0, 255, 255, 0.05);
+                        border-radius: 10px;
+                        font-size: 14px;
+                        border-left: 3px solid rgba(0, 255, 255, 0.3);
+                        transition: all 0.3s ease;
+                        animation: messageSlide 0.5s ease-out;
+                    }
+
+                    .message:hover {
+                        background: rgba(0, 255, 255, 0.1);
+                        transform: translateX(5px);
+                    }
+
+                    .water-message {
+                        background: rgba(0, 150, 255, 0.1);
+                        border-left: 3px solid #0096ff;
+                        box-shadow: 0 0 15px rgba(0, 150, 255, 0.2);
+                    }
+
+                    /* Custom Scrollbar */
+                    .message-log::-webkit-scrollbar {
+                        width: 8px;
+                    }
+
+                    .message-log::-webkit-scrollbar-track {
+                        background: rgba(0, 0, 0, 0.2);
+                        border-radius: 10px;
+                    }
+
+                    .message-log::-webkit-scrollbar-thumb {
+                        background: linear-gradient(180deg, #00ffff, #0066cc);
+                        border-radius: 10px;
+                        box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+                    }
+
+                    .message-log::-webkit-scrollbar-thumb:hover {
+                        background: linear-gradient(180deg, #00cccc, #0044aa);
+                    }
+
+                    /* Animations */
+                    @keyframes float {
+                        0%, 100% { transform: translateY(0px); }
+                        50% { transform: translateY(-10px); }
+                    }
+
+                    @keyframes glow {
+                        0% { filter: drop-shadow(0 0 20px #00ffff); }
+                        100% { filter: drop-shadow(0 0 30px #00ffff) drop-shadow(0 0 40px #00ffff); }
+                    }
+
+                    @keyframes scan {
+                        0% { transform: translate(-50%, -50%) rotate(0deg); }
+                        100% { transform: translate(-50%, -50%) rotate(360deg); }
+                    }
+
+                    @keyframes textGlow {
+                        0% { text-shadow: 0 0 20px rgba(0, 255, 255, 0.5); }
+                        100% { text-shadow: 0 0 30px rgba(0, 255, 255, 0.8), 0 0 40px rgba(255, 0, 255, 0.3); }
+                    }
+
+                    @keyframes shimmer {
+                        0% { left: -100%; }
+                        100% { left: 100%; }
+                    }
+
+                    @keyframes messageSlide {
+                        0% { transform: translateX(-20px); opacity: 0; }
+                        100% { transform: translateX(0); opacity: 1; }
+                    }
+
+                    @keyframes pulse {
+                        0%, 100% { transform: scale(1); opacity: 1; }
+                        50% { transform: scale(1.05); opacity: 0.8; }
+                    }
+
                     .pulse {
                         animation: pulse 2s infinite;
                     }
-                    @keyframes pulse {
-                        0% { transform: scale(1); }
-                        50% { transform: scale(1.05); }
-                        100% { transform: scale(1); }
+
+                    /* Responsive Design */
+                    @media (max-width: 768px) {
+                        .stats-grid {
+                            grid-template-columns: 1fr;
+                            gap: 15px;
+                        }
+                        
+                        .bot-avatar {
+                            font-size: 80px;
+                        }
+                        
+                        h1 {
+                            font-size: 2rem;
+                        }
+                        
+                        .btn {
+                            padding: 12px 24px;
+                            font-size: 14px;
+                        }
                     }
                 </style>
             </head>
@@ -337,7 +623,8 @@ export class BotInterface {
                         ${this.getBotEmoji()}
                     </div>
                     
-                    <h1>🤖 Coding Buddy Bot</h1>
+                    <h1>WorkWave</h1>
+                    <div class="subtitle">your coding companion</div>
                     
                     <div class="bot-status">
                         <h2>Current Status</h2>
@@ -355,20 +642,6 @@ export class BotInterface {
                             <div class="stat-value" id="session-timer">${displayTime}</div>
                             <div class="stat-label">Session Time</div>
                         </div>
-                        <div class="stat-card">
-                            <div class="stat-value">🚀</div>
-                            <div class="stat-value">${
-                              this.breakthroughCount
-                            }</div>
-                            <div class="stat-label">Breakthroughs</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-value">🎯</div>
-                            <div class="stat-value">${Math.floor(
-                              this.focusTime / (1000 * 60)
-                            )}m</div>
-                            <div class="stat-label">Focus Time</div>
-                        </div>
                     </div>
                     
                     <div class="code-analysis">
@@ -376,31 +649,13 @@ export class BotInterface {
                         <div class="code-stats-grid">
                             <div class="code-stat-card">
                                 <div class="code-stat-value">📝</div>
-                                <div class="code-stat-value">${
-                                  this.codeStats.lineCount
-                                }</div>
+                                <div class="code-stat-value">${this.codeStats.lineCount}</div>
                                 <div class="code-stat-label">Lines of Code</div>
                             </div>
                             <div class="code-stat-card">
                                 <div class="code-stat-value">❌</div>
-                                <div class="code-stat-value">${
-                                  this.codeStats.errorCount
-                                }</div>
+                                <div class="code-stat-value">${this.codeStats.errorCount}</div>
                                 <div class="code-stat-label">Errors</div>
-                            </div>
-                            <div class="code-stat-card">
-                                <div class="code-stat-value">🧠</div>
-                                <div class="code-stat-value">${
-                                  this.codeStats.complexity
-                                }</div>
-                                <div class="code-stat-label">Complexity</div>
-                            </div>
-                            <div class="code-stat-card">
-                                <div class="code-stat-value">⭐</div>
-                                <div class="code-stat-value">${
-                                  this.codeStats.quality
-                                }</div>
-                                <div class="code-stat-label">Quality</div>
                             </div>
                         </div>
                     </div>
@@ -460,16 +715,13 @@ export class BotInterface {
                         sessionStartTime = Date.now();
                         isTimerRunning = true;
                         
-                        // Update immediately
                         updateTimerDisplay();
                         
-                        // Start interval to update every second
                         if (timerInterval) {
                             clearInterval(timerInterval);
                         }
                         timerInterval = setInterval(updateTimerDisplay, 1000);
                         
-                        // Update button states
                         const startBtn = document.getElementById('start-btn');
                         const stopBtn = document.getElementById('stop-btn');
                         if (startBtn) startBtn.disabled = true;
@@ -484,7 +736,6 @@ export class BotInterface {
                             timerInterval = null;
                         }
                         
-                        // Update button states
                         const startBtn = document.getElementById('start-btn');
                         const stopBtn = document.getElementById('stop-btn');
                         if (startBtn) startBtn.disabled = false;
@@ -498,7 +749,6 @@ export class BotInterface {
                             newMessage.className = 'message water-message';
                             newMessage.textContent = message;
                             
-                            // Add after the header but before other messages
                             const messages = messageLog.querySelectorAll('.message');
                             if (messages.length > 0) {
                                 messageLog.insertBefore(newMessage, messages);
@@ -506,7 +756,6 @@ export class BotInterface {
                                 messageLog.appendChild(newMessage);
                             }
                             
-                            // Keep only the last 10 messages
                             const allMessages = messageLog.querySelectorAll('.message');
                             if (allMessages.length > 10) {
                                 allMessages[allMessages.length - 1].remove();
@@ -514,7 +763,6 @@ export class BotInterface {
                         }
                     }
                     
-                    // Listen for messages from the extension
                     window.addEventListener('message', function(event) {
                         const message = event.data;
                         switch (message.command) {
@@ -530,7 +778,6 @@ export class BotInterface {
                         }
                     });
                     
-                    // Initialize button states
                     document.addEventListener('DOMContentLoaded', function() {
                         const startBtn = document.getElementById('start-btn');
                         const stopBtn = document.getElementById('stop-btn');
@@ -549,11 +796,10 @@ export class BotInterface {
       frustrated: "😤",
       concerned: "😟",
     };
-    return emojiMap[this.currentEmotion] || "😊";
+    return emojiMap[this.currentEmotion] || "🤖";
   }
 
   public dispose(): void {
-    // Stop water reminder when disposing
     this.stopWaterReminder();
     
     if (this.panel) {
