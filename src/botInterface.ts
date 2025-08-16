@@ -6,6 +6,18 @@ export class BotInterface {
     private sessionDuration: number = 0;
     private breakthroughCount: number = 0;
     private focusTime: number = 0;
+    private currentReason: string = 'Ready to code!';
+    private codeStats: {
+        lineCount: number;
+        errorCount: number;
+        complexity: number;
+        quality: string;
+    } = {
+        lineCount: 0,
+        errorCount: 0,
+        complexity: 0,
+        quality: 'good'
+    };
 
     constructor() {
         console.log('BotInterface initialized');
@@ -46,9 +58,6 @@ export class BotInterface {
                     case 'stopSession':
                         vscode.commands.executeCommand('coding-buddy-bot.stopSession');
                         break;
-                    case 'toggleCamera':
-                        vscode.commands.executeCommand('coding-buddy-bot.toggleCamera');
-                        break;
                 }
             }
         );
@@ -62,8 +71,28 @@ export class BotInterface {
         this.panel.webview.html = this.getWebviewContent();
     }
 
-    public updateEmotion(emotion: string): void {
+    public updateEmotion(emotion: string, reason?: string): void {
+        console.log(`[BOT INTERFACE] updateEmotion called: ${emotion}, reason: ${reason}`);
         this.currentEmotion = emotion;
+        if (reason) {
+            this.currentReason = reason;
+        }
+        // Always open/reveal the panel when emotion updates
+        if (!this.panel) {
+            this.showBot();
+        } else {
+            this.panel.reveal();
+        }
+        this.updateBotInterface();
+    }
+
+    public updateCodeStats(stats: {
+        lineCount: number;
+        errorCount: number;
+        complexity: number;
+        quality: string;
+    }): void {
+        this.codeStats = stats;
         this.updateBotInterface();
     }
 
@@ -91,7 +120,7 @@ export class BotInterface {
                         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
                         margin: 0;
                         padding: 20px;
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        background: red !important;
                         color: white;
                         min-height: 100vh;
                     }
@@ -177,6 +206,41 @@ export class BotInterface {
                         border-radius: 8px;
                         font-size: 14px;
                     }
+                    .reason-display {
+                        font-size: 18px;
+                        margin: 10px 0;
+                        padding: 12px;
+                        background: rgba(255, 255, 255, 0.15);
+                        border-radius: 10px;
+                        font-style: italic;
+                    }
+                    .code-analysis {
+                        background: rgba(255, 255, 255, 0.1);
+                        padding: 20px;
+                        border-radius: 15px;
+                        margin: 20px 0;
+                    }
+                    .code-stats-grid {
+                        display: grid;
+                        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+                        gap: 15px;
+                        margin: 15px 0;
+                    }
+                    .code-stat-card {
+                        background: rgba(255, 255, 255, 0.15);
+                        padding: 12px;
+                        border-radius: 10px;
+                        text-align: center;
+                    }
+                    .code-stat-value {
+                        font-size: 24px;
+                        font-weight: bold;
+                        margin: 5px 0;
+                    }
+                    .code-stat-label {
+                        font-size: 12px;
+                        opacity: 0.8;
+                    }
                     @keyframes bounce {
                         0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
                         40% { transform: translateY(-10px); }
@@ -205,6 +269,9 @@ export class BotInterface {
                         <div class="emotion-display">
                             🎭 Feeling: <strong>${this.currentEmotion}</strong>
                         </div>
+                        <div class="reason-display">
+                            💭 ${this.currentReason}
+                        </div>
                     </div>
                     
                     <div class="stats-grid">
@@ -225,10 +292,35 @@ export class BotInterface {
                         </div>
                     </div>
                     
+                    <div class="code-analysis">
+                        <h3>📊 Code Analysis</h3>
+                        <div class="code-stats-grid">
+                            <div class="code-stat-card">
+                                <div class="code-stat-value">📝</div>
+                                <div class="code-stat-value">${this.codeStats.lineCount}</div>
+                                <div class="code-stat-label">Lines of Code</div>
+                            </div>
+                            <div class="code-stat-card">
+                                <div class="code-stat-value">❌</div>
+                                <div class="code-stat-value">${this.codeStats.errorCount}</div>
+                                <div class="code-stat-label">Errors</div>
+                            </div>
+                            <div class="code-stat-card">
+                                <div class="code-stat-value">🧠</div>
+                                <div class="code-stat-value">${this.codeStats.complexity}</div>
+                                <div class="code-stat-label">Complexity</div>
+                            </div>
+                            <div class="code-stat-card">
+                                <div class="code-stat-value">⭐</div>
+                                <div class="code-stat-value">${this.codeStats.quality}</div>
+                                <div class="code-stat-label">Quality</div>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <div class="controls">
                         <button class="btn" onclick="startSession()">🚀 Start Session</button>
                         <button class="btn" onclick="stopSession()">⏹️ Stop Session</button>
-                        <button class="btn" onclick="toggleCamera()">📹 Toggle Camera</button>
                     </div>
                     
                     <div class="message-log">
@@ -248,39 +340,8 @@ export class BotInterface {
                         vscode.postMessage({ command: 'stopSession' });
                     }
                     
-                    function toggleCamera() {
-                        vscode.postMessage({ command: 'toggleCamera' });
-                    }
-                    
-                    // Simulate bot activity
-                    setInterval(() => {
-                        const emotions = ['focused', 'happy', 'confident', 'frustrated', 'confused', 'surprised'];
-                        const randomEmotion = emotions[Math.floor(Math.random() * emotions.length)];
-                        
-                        // Update emotion display
-                        const emotionDisplay = document.querySelector('.emotion-display');
-                        if (emotionDisplay) {
-                            emotionDisplay.innerHTML = \`🎭 Feeling: <strong>\${randomEmotion}</strong>\`;
-                        }
-                        
-                        // Update bot avatar
-                        const botAvatar = document.querySelector('.bot-avatar');
-                        if (botAvatar) {
-                            botAvatar.innerHTML = getBotEmoji(randomEmotion);
-                        }
-                    }, 5000);
-                    
-                    function getBotEmoji(emotion = 'focused') {
-                        const emojiMap = {
-                            'focused': '🤔',
-                            'happy': '😊',
-                            'confident': '💪',
-                            'frustrated': '😤',
-                            'confused': '🤷‍♂️',
-                            'surprised': '😲'
-                        };
-                        return emojiMap[emotion] || '🤖';
-                    }
+                    // Bot emotions are now controlled by the extension, not random
+                    // The emotion display will update automatically when code changes
                 </script>
             </body>
             </html>
@@ -289,14 +350,10 @@ export class BotInterface {
 
     private getBotEmoji(): string {
         const emojiMap: { [key: string]: string } = {
-            'focused': '🤔',
             'happy': '😊',
-            'confident': '💪',
-            'frustrated': '😤',
-            'confused': '🤷‍♂️',
-            'surprised': '😲'
+            'frustrated': '😤'
         };
-        return emojiMap[this.currentEmotion] || '🤖';
+        return emojiMap[this.currentEmotion] || '😊';
     }
 
     public dispose(): void {

@@ -2,10 +2,12 @@ import * as vscode from 'vscode';
 import { CodingBuddyBot } from './codingBuddyBot';
 import { StatusBarManager } from './statusBarManager';
 import { BotInterface } from './botInterface';
+import { CodeAnalyzer } from './codeAnalyzer';
 
 let codingBuddyBot: CodingBuddyBot;
 let statusBarManager: StatusBarManager;
 let botInterface: BotInterface;
+let codeAnalyzer: CodeAnalyzer;
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Coding Buddy Bot is now active!');
@@ -18,6 +20,30 @@ export function activate(context: vscode.ExtensionContext) {
     
     // Initialize bot interface
     botInterface = new BotInterface();
+    
+    // Initialize code analyzer
+    codeAnalyzer = new CodeAnalyzer();
+    codeAnalyzer.setEmotionCallback((emotion, reason) => {
+        console.log(`[EXTENSION] Emotion callback triggered: ${emotion}, reason: ${reason}`);
+        botInterface.updateEmotion(emotion, reason);
+        const currentAnalysis = codeAnalyzer.getCurrentAnalysis();
+        if (currentAnalysis) {
+            botInterface.updateCodeStats({
+                lineCount: currentAnalysis.lineCount,
+                errorCount: currentAnalysis.errorCount,
+                complexity: currentAnalysis.complexity,
+                quality: currentAnalysis.quality
+            });
+        }
+        switch (emotion) {
+            case 'frustrated':
+                vscode.window.showInformationMessage(`😤 ${reason} - Don't worry, debugging is part of the journey! 💪`);
+                break;
+            case 'happy':
+                vscode.window.showInformationMessage(`😊 ${reason} - You're on fire! 🔥`);
+                break;
+        }
+    });
 
     // Register commands
     let startSession = vscode.commands.registerCommand('coding-buddy-bot.startSession', () => {
@@ -32,17 +58,11 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.showInformationMessage('👋 Coding Buddy Bot session ended. Great work today!');
     });
 
-    let toggleCamera = vscode.commands.registerCommand('coding-buddy-bot.toggleCamera', () => {
-        codingBuddyBot.toggleCamera();
-        const isActive = codingBuddyBot.getCameraActive();
-        statusBarManager.updateStatus(isActive ? '📹 Camera On' : '📹 Camera Off');
-    });
-
     let showBot = vscode.commands.registerCommand('coding-buddy-bot.showBot', () => {
         botInterface.showBot();
     });
 
-    context.subscriptions.push(startSession, stopSession, toggleCamera, showBot);
+    context.subscriptions.push(startSession, stopSession, showBot);
 
     // Set initial status
     statusBarManager.updateStatus('🔴 Inactive');

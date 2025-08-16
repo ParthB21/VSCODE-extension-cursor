@@ -1,0 +1,246 @@
+import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
+
+export interface CodeAnalysisResult {
+    hasErrors: boolean;
+    errorCount: number;
+    lineCount: number;
+    complexity: number;
+    quality: 'good' | 'improving' | 'needs_work';
+    lastError?: string;
+    lastSuccess?: string;
+}
+
+export class CodeAnalyzer {
+    private fileWatcher: vscode.FileSystemWatcher | undefined;
+    private currentFile: string | undefined;
+    private analysisResults: Map<string, CodeAnalysisResult> = new Map();
+    private onEmotionChange: ((emotion: string, reason: string) => void) | undefined;
+
+    constructor() {
+        console.log('CodeAnalyzer initialized');
+        this.setupFileWatcher();
+    }
+
+    public setEmotionCallback(callback: (emotion: string, reason: string) => void): void {
+        this.onEmotionChange = callback;
+    }
+
+    private setupFileWatcher(): void {
+        console.log('🔧 Setting up file watchers...');
+        
+        // Watch for active text editor changes
+        vscode.window.onDidChangeActiveTextEditor(editor => {
+            if (editor && this.isPythonFile(editor.document)) {
+                console.log(`📁 Active editor changed to: ${editor.document.fileName}`);
+                this.currentFile = editor.document.fileName;
+                this.analyzeFile(editor.document);
+            }
+        });
+
+        // Watch for document changes
+        vscode.workspace.onDidChangeTextDocument(event => {
+            if (this.isPythonFile(event.document) && event.document === vscode.window.activeTextEditor?.document) {
+                console.log(`✏️ Document changed: ${event.document.fileName}`);
+                this.analyzeFile(event.document);
+            }
+        });
+
+        // Watch for document saves
+        vscode.workspace.onDidSaveTextDocument(document => {
+            if (this.isPythonFile(document)) {
+                console.log(`💾 Document saved: ${document.fileName}`);
+                this.analyzeFile(document);
+            }
+        });
+        
+        console.log('✅ File watchers set up successfully');
+    }
+
+    private isPythonFile(document: vscode.TextDocument): boolean {
+        return document.languageId === 'python' || document.fileName.endsWith('.py');
+    }
+
+    private async analyzeFile(document: vscode.TextDocument): Promise<void> {
+        try {
+            console.log(`🔍 Analyzing file: ${document.fileName}`);
+            const content = document.getText();
+            const result = await this.analyzePythonCode(content);
+            
+            console.log(`📊 Analysis result:`, result);
+            this.analysisResults.set(document.fileName, result);
+            this.updateBotEmotion(result, document.fileName);
+            
+        } catch (error) {
+            console.error('Error analyzing Python file:', error);
+        }
+    }
+
+    private async analyzePythonCode(content: string): Promise<CodeAnalysisResult> {
+        const lines = content.split('\n').filter(line => line.trim().length > 0);
+        const lineCount = lines.length;
+        
+        // Basic syntax analysis
+        const syntaxErrors = this.checkPythonSyntax(content);
+        const hasErrors = syntaxErrors.length > 0;
+        const errorCount = syntaxErrors.length;
+        
+        // Code quality analysis
+        const complexity = this.calculateComplexity(lines);
+        const quality = this.assessCodeQuality(lines, complexity, errorCount);
+        
+        // Get last error/success message
+        const lastError = hasErrors ? syntaxErrors[0] : undefined;
+        const lastSuccess = !hasErrors && lineCount > 0 ? 'Code looks good!' : undefined;
+
+        return {
+            hasErrors,
+            errorCount,
+            lineCount,
+            complexity,
+            quality,
+            lastError,
+            lastSuccess
+        };
+    }
+
+    private checkPythonSyntax(content: string): string[] {
+        const errors: string[] = [];
+        
+        // Basic Python syntax checks
+        const lines = content.split('\n');
+        
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const lineNumber = i + 1;
+            
+            // Check for common Python syntax issues
+            if (line.includes('print(') && !line.includes(')')) {
+                errors.push(`Line ${lineNumber}: Missing closing parenthesis in print statement`);
+            }
+            
+            if (line.includes('if ') && !line.includes(':') && line.trim().length > 0) {
+                errors.push(`Line ${lineNumber}: Missing colon after if statement`);
+            }
+            
+            if (line.includes('def ') && !line.includes(':') && line.trim().length > 0) {
+                errors.push(`Line ${lineNumber}: Missing colon after function definition`);
+            }
+            
+            if (line.includes('for ') && !line.includes(':') && line.trim().length > 0) {
+                errors.push(`Line ${lineNumber}: Missing colon after for loop`);
+            }
+            
+            if (line.includes('while ') && !line.includes(':') && line.trim().length > 0) {
+                errors.push(`Line ${lineNumber}: Missing colon after while loop`);
+            }
+            
+            if (line.includes('try:') && !this.hasMatchingExcept(lines, i)) {
+                errors.push(`Line ${lineNumber}: try block without matching except`);
+            }
+            
+            // Check for unmatched quotes
+            const singleQuotes = (line.match(/'/g) || []).length;
+            const doubleQuotes = (line.match(/"/g) || []).length;
+            if (singleQuotes % 2 !== 0 || doubleQuotes % 2 !== 0) {
+                errors.push(`Line ${lineNumber}: Unmatched quotes`);
+            }
+            
+            // Check for undefined variables (basic check)
+            if (line.includes('=') && line.includes('+') && line.includes('undefined')) {
+                errors.push(`Line ${lineNumber}: Possible undefined variable usage`);
+            }
+        }
+        
+        return errors;
+    }
+
+    private hasMatchingExcept(lines: string[], tryLineIndex: number): boolean {
+        for (let i = tryLineIndex + 1; i < lines.length; i++) {
+            if (lines[i].trim().startsWith('except')) {
+                return true;
+            }
+            if (lines[i].trim().startsWith('def ') || lines[i].trim().startsWith('class ')) {
+                break;
+            }
+        }
+        return false;
+    }
+
+    private calculateComplexity(lines: string[]): number {
+        let complexity = 0;
+        
+        for (const line of lines) {
+            const trimmed = line.trim();
+            
+            // Increase complexity for control structures
+            if (trimmed.startsWith('if ') || trimmed.startsWith('elif ')) complexity += 1;
+            if (trimmed.startsWith('for ') || trimmed.startsWith('while ')) complexity += 2;
+            if (trimmed.startsWith('try:') || trimmed.startsWith('except ')) complexity += 1;
+            if (trimmed.startsWith('def ') || trimmed.startsWith('class ')) complexity += 1;
+            if (trimmed.includes(' and ') || trimmed.includes(' or ')) complexity += 1;
+            if (trimmed.includes('lambda ')) complexity += 2;
+            
+            // Nested structures increase complexity more
+            const indentLevel = line.length - line.trimStart().length;
+            if (indentLevel > 8) complexity += 1;
+        }
+        
+        return complexity;
+    }
+
+    private assessCodeQuality(lines: string[], complexity: number, errorCount: number): 'good' | 'improving' | 'needs_work' {
+        if (errorCount === 0 && complexity < 10 && lines.length > 0) {
+            return 'good';
+        } else if (errorCount === 0 && lines.length > 0) {
+            return 'improving';
+        } else {
+            return 'needs_work';
+        }
+    }
+
+    private updateBotEmotion(result: CodeAnalysisResult, fileName: string): void {
+        if (!this.onEmotionChange) return;
+
+        let emotion: string;
+        let reason: string;
+
+        if (result.hasErrors) {
+            emotion = 'frustrated';
+            reason = `Found ${result.errorCount} syntax error(s) in ${path.basename(fileName)}`;
+        } else if (result.lineCount === 0) {
+            emotion = 'happy';
+            reason = 'Empty file - ready to start coding!';
+        } else {
+            emotion = 'happy';
+            reason = `Great code! ${result.lineCount} lines written, no errors found`;
+        }
+
+        // Only trigger emotion change if it's different or significant
+        const currentResult = this.analysisResults.get(fileName);
+        if (!currentResult || 
+            currentResult.hasErrors !== result.hasErrors || 
+            currentResult.errorCount !== result.errorCount ||
+            currentResult.lineCount !== result.lineCount) {
+            
+            console.log(`🎭 Emotion change: ${emotion} - ${reason}`);
+            this.onEmotionChange(emotion, reason);
+        }
+    }
+
+    public getCurrentAnalysis(): CodeAnalysisResult | undefined {
+        if (!this.currentFile) return undefined;
+        return this.analysisResults.get(this.currentFile);
+    }
+
+    public getAllAnalysisResults(): Map<string, CodeAnalysisResult> {
+        return this.analysisResults;
+    }
+
+    public dispose(): void {
+        if (this.fileWatcher) {
+            this.fileWatcher.dispose();
+        }
+    }
+}

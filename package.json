@@ -25,11 +25,7 @@
         "title": "Stop Coding Buddy Session",
         "category": "Coding Buddy"
       },
-      {
-        "command": "coding-buddy-bot.toggleCamera",
-        "title": "Toggle Camera",
-        "category": "Coding Buddy"
-      },
+
       {
         "command": "coding-buddy-bot.showBot",
         "title": "Show Bot Interface",
