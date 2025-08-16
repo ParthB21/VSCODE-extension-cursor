@@ -46,17 +46,48 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     // Register commands
-    let startSession = vscode.commands.registerCommand('coding-buddy-bot.startSession', () => {
-        codingBuddyBot.startSession();
-        statusBarManager.updateStatus('🟢 Active');
-        vscode.window.showInformationMessage('🚀 Coding Buddy Bot session started! Let\'s code together!');
-    });
+    let sessionTimer: NodeJS.Timeout | undefined;
+    let sessionStartTime: number = 0;
 
-    let stopSession = vscode.commands.registerCommand('coding-buddy-bot.stopSession', () => {
-        codingBuddyBot.stopSession();
-        statusBarManager.updateStatus('🔴 Inactive');
-        vscode.window.showInformationMessage('👋 Coding Buddy Bot session ended. Great work today!');
-    });
+// In extension.ts, update your command handlers:
+
+// In your startSession command:
+let startSession = vscode.commands.registerCommand('coding-buddy-bot.startSession', () => {
+    codingBuddyBot.startSession();
+    statusBarManager.updateStatus('🟢 Active');
+    vscode.window.showInformationMessage('🚀 Coding Buddy Bot session started! Let\'s code together!');
+    sessionStartTime = Date.now();
+    
+    // Start timer and water reminders
+    botInterface.startTimer();
+    botInterface.startWaterReminder(); // Add this line
+    
+    // Start timer to update bot interface every second
+    if (sessionTimer) clearInterval(sessionTimer);
+    sessionTimer = setInterval(() => {
+        const elapsed = Date.now() - sessionStartTime;
+        botInterface.updateSessionStats(elapsed, codingBuddyBot['breakthroughCount'] || 0, codingBuddyBot['focusTime'] || 0);
+    }, 1000);
+});
+
+// In your stopSession command:
+let stopSession = vscode.commands.registerCommand('coding-buddy-bot.stopSession', () => {
+    codingBuddyBot.stopSession();
+    statusBarManager.updateStatus('🔴 Inactive');
+    vscode.window.showInformationMessage('👋 Coding Buddy Bot session ended. Great work today!');
+    
+    // Stop timer and water reminders
+    botInterface.stopTimer();
+    botInterface.stopWaterReminder(); // Add this line
+    
+    if (sessionTimer) {
+        clearInterval(sessionTimer);
+        sessionTimer = undefined;
+    }
+    // Final update to bot interface with last session duration
+    const elapsed = Date.now() - sessionStartTime;
+    botInterface.updateSessionStats(elapsed, codingBuddyBot['breakthroughCount'] || 0, codingBuddyBot['focusTime'] || 0);
+});
 
     let showBot = vscode.commands.registerCommand('coding-buddy-bot.showBot', () => {
         botInterface.showBot();
@@ -76,6 +107,8 @@ export function deactivate() {
         codingBuddyBot.stopSession();
     }
 }
+
+// ...existing code...
 
 function startHealthReminders() {
     // Remind to take breaks every 50 minutes

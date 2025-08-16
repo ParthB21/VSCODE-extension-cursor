@@ -5,13 +5,10 @@ import * as path from "path";
 export interface CodeAnalysisResult {
   hasErrors: boolean;
   errorCount: number;
-  hasWarnings: boolean;
-  warningCount: number;
   lineCount: number;
   complexity: number;
   quality: "good" | "improving" | "needs_work";
   lastError?: string;
-  lastWarning?: string;
   lastSuccess?: string;
 }
 
@@ -116,31 +113,21 @@ export class CodeAnalyzer {
     const hasErrors = syntaxErrors.length > 0;
     const errorCount = syntaxErrors.length;
 
-    // Basic warnings analysis (style/quality hints)
-    const warnings = this.checkPythonWarnings(content);
-    const hasWarnings = warnings.length > 0;
-    const warningCount = warnings.length;
-
     // Code quality analysis
     const complexity = this.calculateComplexity(lines);
     const quality = this.assessCodeQuality(lines, complexity, errorCount);
 
     // Get last messages
     const lastError = hasErrors ? syntaxErrors[0] : undefined;
-    const lastWarning = hasWarnings ? warnings[0] : undefined;
-    const lastSuccess =
-      !hasErrors && lineCount > 0 ? "Code looks good!" : undefined;
+    const lastSuccess = !hasErrors && lineCount > 0 ? "Code looks good!" : undefined;
 
     return {
       hasErrors,
       errorCount,
-      hasWarnings,
-      warningCount,
       lineCount,
       complexity,
       quality,
       lastError,
-      lastWarning,
       lastSuccess,
     };
   }
@@ -332,9 +319,7 @@ export class CodeAnalyzer {
       reason = `Found ${result.errorCount} syntax error(s) in ${path.basename(
         fileName
       )}`;
-    } else if (result.hasWarnings) {
-      emotion = "concerned";
-      reason = `Warnings detected in ${path.basename(fileName)}`;
+  // ...existing code...
     } else if (result.lineCount === 0) {
       emotion = "happy";
       reason = "Empty file - ready to start coding!";

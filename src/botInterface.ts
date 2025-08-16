@@ -7,6 +7,7 @@ export class BotInterface {
   private breakthroughCount: number = 0;
   private focusTime: number = 0;
   private currentReason: string = "Ready to code!";
+  private waterReminderTimer: NodeJS.Timeout | undefined;
   private codeStats: {
     lineCount: number;
     errorCount: number;
@@ -49,16 +50,18 @@ export class BotInterface {
     });
 
     // Handle messages from webview
-    this.panel.webview.onDidReceiveMessage((message) => {
-      switch (message.command) {
-        case "startSession":
-          vscode.commands.executeCommand("coding-buddy-bot.startSession");
-          break;
-        case "stopSession":
-          vscode.commands.executeCommand("coding-buddy-bot.stopSession");
-          break;
-      }
-    });
+    if (this.panel && this.panel.webview) {
+      this.panel.webview.onDidReceiveMessage((message: any) => {
+        switch (message.command) {
+          case "startSession":
+            vscode.commands.executeCommand("coding-buddy-bot.startSession");
+            break;
+          case "stopSession":
+            vscode.commands.executeCommand("coding-buddy-bot.stopSession");
+            break;
+        }
+      });
+    }
   }
 
   public updateBotInterface(): void {
@@ -102,6 +105,63 @@ export class BotInterface {
     this.breakthroughCount = breakthroughs;
     this.focusTime = focus;
     this.updateBotInterface();
+  }
+
+  // Timer control methods
+  public startTimer(): void {
+    if (this.panel) {
+      this.panel.webview.postMessage({ command: 'startTimer' });
+    }
+  }
+
+  public stopTimer(): void {
+    if (this.panel) {
+      this.panel.webview.postMessage({ command: 'stopTimer' });
+    }
+  }
+
+  // WATER REMINDER METHODS
+  public startWaterReminder(): void {
+    // Clear any existing timer
+    this.stopWaterReminder();
+    
+    // Set up water reminder every 15 seconds (for testing - change to 15 * 60 * 1000 for 15 minutes)
+    this.waterReminderTimer = setInterval(() => {
+      this.showWaterNotification();
+    }, 15 * 1000); // 15 seconds for testing
+    
+    console.log("💧 Water reminder started - notifications every 15 seconds");
+  }
+
+  public stopWaterReminder(): void {
+    if (this.waterReminderTimer) {
+      clearInterval(this.waterReminderTimer);
+      this.waterReminderTimer = undefined;
+      console.log("💧 Water reminder stopped");
+    }
+  }
+
+  private showWaterNotification(): void {
+    const waterMessages = [
+      "💧 Time to hydrate! Take a sip of water and keep that brain working smoothly!",
+      "🚰 Hydration checkpoint! Your body needs water to keep coding at peak performance!",
+      "💦 Don't forget to drink water! Stay hydrated, stay focused!",
+      "🥤 Water break reminder! Your coding buddy cares about your health!",
+      "💧 Quick hydration reminder - your brain is 75% water, keep it topped up!"
+    ];
+
+    const randomMessage = waterMessages[Math.floor(Math.random() * waterMessages.length)];
+    
+    // Show VS Code notification
+    vscode.window.showInformationMessage(randomMessage);
+    
+    // Also send message to webview if it exists
+    if (this.panel) {
+      this.panel.webview.postMessage({ 
+        command: 'waterReminder', 
+        message: randomMessage 
+      });
+    }
   }
 
   private getWebviewContent(): string {
@@ -192,6 +252,15 @@ export class BotInterface {
                     .btn:active {
                         transform: translateY(0);
                     }
+                    .btn:disabled {
+                        background: rgba(255, 255, 255, 0.1);
+                        cursor: not-allowed;
+                        opacity: 0.6;
+                    }
+                    .btn:disabled:hover {
+                        background: rgba(255, 255, 255, 0.1);
+                        transform: none;
+                    }
                     .message-log {
                         background: rgba(0, 0, 0, 0.2);
                         padding: 15px;
@@ -207,6 +276,10 @@ export class BotInterface {
                         background: rgba(255, 255, 255, 0.1);
                         border-radius: 8px;
                         font-size: 14px;
+                    }
+                    .water-message {
+                        background: rgba(0, 150, 255, 0.3);
+                        border-left: 4px solid #0096ff;
                     }
                     .reason-display {
                         font-size: 18px;
@@ -279,7 +352,7 @@ export class BotInterface {
                     <div class="stats-grid">
                         <div class="stat-card">
                             <div class="stat-value">⏱️</div>
-                            <div class="stat-value">${displayTime}</div>
+                            <div class="stat-value" id="session-timer">${displayTime}</div>
                             <div class="stat-label">Session Time</div>
                         </div>
                         <div class="stat-card">
@@ -333,11 +406,11 @@ export class BotInterface {
                     </div>
                     
                     <div class="controls">
-                        <button class="btn" onclick="startSession()">🚀 Start Session</button>
-                        <button class="btn" onclick="stopSession()">⏹️ Stop Session</button>
+                        <button class="btn" onclick="startSession()" id="start-btn">🚀 Start Session</button>
+                        <button class="btn" onclick="stopSession()" id="stop-btn">⏹️ Stop Session</button>
                     </div>
                     
-                    <div class="message-log">
+                    <div class="message-log" id="message-log">
                         <h3>💬 Recent Messages</h3>
                         <div class="message">🎯 Welcome to your coding session!</div>
                         <div class="message">💪 I'm here to cheer you on and keep you healthy!</div>
@@ -346,16 +419,124 @@ export class BotInterface {
                 </div>
                 
                 <script>
+                    const vscodeApi = acquireVsCodeApi();
+                    let timerInterval = null;
+                    let sessionStartTime = null;
+                    let isTimerRunning = false;
+                    
                     function startSession() {
-                        vscode.postMessage({ command: 'startSession' });
+                        vscodeApi.postMessage({ command: 'startSession' });
                     }
                     
                     function stopSession() {
-                        vscode.postMessage({ command: 'stopSession' });
+                        vscodeApi.postMessage({ command: 'stopSession' });
                     }
                     
-                    // Bot emotions are now controlled by the extension, not random
-                    // The emotion display will update automatically when code changes
+                    function updateTimerDisplay() {
+                        if (!sessionStartTime || !isTimerRunning) return;
+                        
+                        const now = Date.now();
+                        const elapsed = now - sessionStartTime;
+                        const totalSeconds = Math.floor(elapsed / 1000);
+                        
+                        const hours = Math.floor(totalSeconds / 3600);
+                        const minutes = Math.floor((totalSeconds % 3600) / 60);
+                        const seconds = totalSeconds % 60;
+                        
+                        let timeString;
+                        if (hours > 0) {
+                            timeString = hours + 'h ' + minutes + 'm ' + seconds + 's';
+                        } else {
+                            timeString = minutes + 'm ' + seconds + 's';
+                        }
+                        
+                        const timerElement = document.getElementById('session-timer');
+                        if (timerElement) {
+                            timerElement.textContent = timeString;
+                        }
+                    }
+                    
+                    function startTimer() {
+                        sessionStartTime = Date.now();
+                        isTimerRunning = true;
+                        
+                        // Update immediately
+                        updateTimerDisplay();
+                        
+                        // Start interval to update every second
+                        if (timerInterval) {
+                            clearInterval(timerInterval);
+                        }
+                        timerInterval = setInterval(updateTimerDisplay, 1000);
+                        
+                        // Update button states
+                        const startBtn = document.getElementById('start-btn');
+                        const stopBtn = document.getElementById('stop-btn');
+                        if (startBtn) startBtn.disabled = true;
+                        if (stopBtn) stopBtn.disabled = false;
+                    }
+                    
+                    function stopTimer() {
+                        isTimerRunning = false;
+                        
+                        if (timerInterval) {
+                            clearInterval(timerInterval);
+                            timerInterval = null;
+                        }
+                        
+                        // Update button states
+                        const startBtn = document.getElementById('start-btn');
+                        const stopBtn = document.getElementById('stop-btn');
+                        if (startBtn) startBtn.disabled = false;
+                        if (stopBtn) stopBtn.disabled = true;
+                    }
+                    
+                    function addWaterMessage(message) {
+                        const messageLog = document.getElementById('message-log');
+                        if (messageLog) {
+                            const newMessage = document.createElement('div');
+                            newMessage.className = 'message water-message';
+                            newMessage.textContent = message;
+                            
+                            // Add after the header but before other messages
+                            const messages = messageLog.querySelectorAll('.message');
+                            if (messages.length > 0) {
+                                messageLog.insertBefore(newMessage, messages);
+                            } else {
+                                messageLog.appendChild(newMessage);
+                            }
+                            
+                            // Keep only the last 10 messages
+                            const allMessages = messageLog.querySelectorAll('.message');
+                            if (allMessages.length > 10) {
+                                allMessages[allMessages.length - 1].remove();
+                            }
+                        }
+                    }
+                    
+                    // Listen for messages from the extension
+                    window.addEventListener('message', function(event) {
+                        const message = event.data;
+                        switch (message.command) {
+                            case 'startTimer':
+                                startTimer();
+                                break;
+                            case 'stopTimer':
+                                stopTimer();
+                                break;
+                            case 'waterReminder':
+                                addWaterMessage(message.message);
+                                break;
+                        }
+                    });
+                    
+                    // Initialize button states
+                    document.addEventListener('DOMContentLoaded', function() {
+                        const startBtn = document.getElementById('start-btn');
+                        const stopBtn = document.getElementById('stop-btn');
+                        if (startBtn) startBtn.disabled = false;
+                        if (stopBtn) stopBtn.disabled = true;
+                    });
                 </script>
             </body>
             </html>
@@ -372,6 +553,9 @@ export class BotInterface {
   }
 
   public dispose(): void {
+    // Stop water reminder when disposing
+    this.stopWaterReminder();
+    
     if (this.panel) {
       this.panel.dispose();
     }
